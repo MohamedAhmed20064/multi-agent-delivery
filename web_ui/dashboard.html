@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Multi-Agent Delivery — Supervisor Control Center</title>
+<style>
+  :root {
+    --bg: #080d14;
+    --panel: #0f1724;
+    --card: #152033;
+    --border: #22324d;
+    --text: #e6edf7;
+    --muted: #8ea2c0;
+    --gold: #f5b83d;
+    --cyan: #38bdf8;
+    --green: #4ade80;
+    --red: #f87171;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+  body {
+    background: radial-gradient(circle at 20% 20%, #0e1829, var(--bg) 70%);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: 1fr 435px;
+    gap: 14px;
+    padding: 14px;
+  }
+  .map-zone {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    padding: 14px;
+    box-shadow: 0 12px 35px rgba(0,0,0,0.45);
+    position: relative;
+  }
+  .map-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .badge {
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    color: var(--cyan);
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+  }
+  .canvas-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    min-height: 0;
+  }
+  .canvas-grid.compare { grid-template-columns: 1fr 1fr; }
+  .canvas-wrap {
+    position: relative;
+    background: #09101a;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  canvas.sim-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: crosshair;
+  }
+  .overlay-tag {
+    position: absolute;
+    top: 10px;
+    left: 12px;
+    background: rgba(15, 23, 36, 0.85);
+    backdrop-filter: blur(6px);
+    border: 1px solid var(--border);
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--gold);
+    pointer-events: none;
+  }
+  .legend {
+    display: flex;
+    gap: 16px;
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--muted);
+    flex-wrap: wrap;
+  }
+  .legend span { display: flex; align-items: center; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+  .sidebar {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+  }
+  .title h1 { font-size: 20px; font-weight: 700; letter-spacing: 0.3px; }
+  .title p { font-size: 12px; color: var(--muted); }
+  .controls-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  select {
+    background: var(--card);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12.5px;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  select:hover, select:focus {
+    border-color: var(--cyan);
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.15);
+  }
+
+  /* Animated Interactive Buttons */
+  /* Uiverse Plasma Glow & Pill Buttons */
+  /* Uiverse Pink/Violet Glow Dropdown Select */
+  .controls-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .uiverse-select-wrap {
+    position: relative;
+    border-radius: 10px;
+    background: #1e2336;
+    overflow: hidden;
+    border: 1px solid rgba(244, 114, 182, 0.35);
+    transition: border-color 0.25s, box-shadow 0.25s;
+  }
+  .uiverse-select-wrap:hover {
+    border-color: #f472b6;
+    box-shadow: 0 0 14px rgba(168, 85, 247, 0.35);
+  }
+  /* التوهج البنفسجي والوردي اللي جوه الزاوية اليمين */
+  .uiverse-select-wrap::before {
+    content: "";
+    position: absolute;
+    width: 44px;
+    height: 44px;
+    right: 0;
+    top: 2px;
+    background: #8b5cf6;
+    border-radius: 50%;
+    filter: blur(14px);
+    box-shadow: -50px 16px 12px 8px rgba(249, 176, 185, 0.75);
+    pointer-events: none;
+    z-index: 1;
+  }
+  /* أيقونة السهم الدائرية اللي بتلف لما تقف عليها */
+  .uiverse-select-wrap svg {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    width: 24px;
+    height: 24px;
+    stroke: #f9a8d4;
+    transform: translateY(-50%) rotate(-45deg);
+    transition: transform 0.3s ease;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .uiverse-select-wrap:hover svg {
+    transform: translateY(-50%) rotate(0deg);
+  }
+  .uiverse-select-wrap select {
+    appearance: none;
+    -webkit-appearance: none;
+    position: relative;
+    z-index: 3;
+    width: 100%;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #f472b6;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 10px 34px 10px 12px;
+    cursor: pointer;
+  }
+  .uiverse-select-wrap select option {
+    background: #161b2e;
+    color: #f8fafc;
+    font-weight: 600;
+  }
+/* Uiverse 12-Circle Plasma Animation (Exact Engine + 5 Color Themes) */
+  .btn-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 12px; margin: 4px 0; }
+
+  .uiverse {
+    --duration: 7s;
+    --easing: linear;
+    --c-color-1: rgba(255, 163, 26, 0.7);
+    --c-color-2: #1a23ff;
+    --c-color-3: #e21bda;
+    --c-color-4: rgba(255, 232, 26, 0.7);
+    --c-shadow: rgba(255, 223, 87, 0.5);
+    --c-shadow-inset-top: rgba(255, 223, 52, 0.9);
+    --c-shadow-inset-bottom: rgba(255, 250, 215, 0.8);
+    --c-radial-inner: #ffd215;
+    --c-radial-outer: #fff172;
+    --c-color: #fff;
+
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+    position: relative;
+    cursor: pointer;
+    border: none;
+    border-radius: 999px;
+    padding: 0;
+    margin: 0;
+    text-align: center;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    color: var(--c-color);
+    background: radial-gradient(circle, var(--c-radial-inner), var(--c-radial-outer) 80%);
+    box-shadow: 0 0 14px var(--c-shadow);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
+    transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.2s;
+  }
+  .uiverse:hover { --duration: 2.5s; transform: translateY(-2px); filter: brightness(1.08); }
+  .uiverse:active { transform: scale(0.94); }
+
+  .uiverse .wrapper {
+    -webkit-mask-image: -webkit-radial-gradient(white, black);
+    overflow: hidden;
+    border-radius: 999px;
+    padding: 10px 8px;
+    position: relative;
+    z-index: 1;
+  }
+  .uiverse .wrapper span {
+    display: inline-block;
+    position: relative;
+    z-index: 2;
+  }
+  .uiverse .wrapper .circle {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    filter: blur(var(--blur, 8px));
+    background: var(--background, transparent);
+    transform: translate(var(--x, 0), var(--y, 0)) translateZ(0);
+    animation: var(--animation, none) var(--duration) var(--easing) infinite;
+    z-index: 1;
+  }
+  .uiverse .wrapper .circle.circle-1, .uiverse .wrapper .circle.circle-9, .uiverse .wrapper .circle.circle-10 { --background: var(--c-color-4); }
+  .uiverse .wrapper .circle.circle-3, .uiverse .wrapper .circle.circle-4 { --background: var(--c-color-2); --blur: 14px; }
+  .uiverse .wrapper .circle.circle-5, .uiverse .wrapper .circle.circle-6 { --background: var(--c-color-3); --blur: 16px; }
+  .uiverse .wrapper .circle.circle-2, .uiverse .wrapper .circle.circle-7, .uiverse .wrapper .circle.circle-8,
+  .uiverse .wrapper .circle.circle-11, .uiverse .wrapper .circle.circle-12 { --background: var(--c-color-1); --blur: 12px; }
+
+  .uiverse .wrapper .circle.circle-1 { --x: 0; --y: -30px; --animation: circle-1; }
+  .uiverse .wrapper .circle.circle-2 { --x: 70px; --y: 8px; --animation: circle-2; }
+  .uiverse .wrapper .circle.circle-3 { --x: -10px; --y: -10px; --animation: circle-3; }
+  .uiverse .wrapper .circle.circle-4 { --x: 60px; --y: -10px; --animation: circle-4; }
+  .uiverse .wrapper .circle.circle-5 { --x: 10px; --y: -4px; --animation: circle-5; }
+  .uiverse .wrapper .circle.circle-6 { --x: 45px; --y: 14px; --animation: circle-6; }
+  .uiverse .wrapper .circle.circle-7 { --x: 8px; --y: 22px; --animation: circle-7; }
+  .uiverse .wrapper .circle.circle-8 { --x: 24px; --y: -4px; --animation: circle-8; }
+  .uiverse .wrapper .circle.circle-9 { --x: 16px; --y: -12px; --animation: circle-9; }
+  .uiverse .wrapper .circle.circle-10 { --x: 50px; --y: 14px; --animation: circle-10; }
+  .uiverse .wrapper .circle.circle-11 { --x: 4px; --y: 4px; --animation: circle-11; }
+  .uiverse .wrapper .circle.circle-12 { --blur: 14px; --x: 42px; --y: 4px; --animation: circle-12; }
+
+  @keyframes circle-1 { 33% { transform: translate(0px, 16px) translateZ(0); } 66% { transform: translate(12px, 50px) translateZ(0); } }
+  @keyframes circle-2 { 33% { transform: translate(60px, -10px) translateZ(0); } 66% { transform: translate(55px, -36px) translateZ(0); } }
+  @keyframes circle-3 { 33% { transform: translate(20px, 12px) translateZ(0); } 66% { transform: translate(12px, 4px) translateZ(0); } }
+  @keyframes circle-4 { 33% { transform: translate(60px, -12px) translateZ(0); } 66% { transform: translate(85px, -8px) translateZ(0); } }
+  @keyframes circle-5 { 33% { transform: translate(65px, 24px) translateZ(0); } 66% { transform: translate(35px, -28px) translateZ(0); } }
+  @keyframes circle-6 { 33% { transform: translate(24px, -14px) translateZ(0); } 66% { transform: translate(60px, -45px) translateZ(0); } }
+  @keyframes circle-7 { 33% { transform: translate(8px, 24px) translateZ(0); } 66% { transform: translate(18px, -48px) translateZ(0); } }
+  @keyframes circle-8 { 33% { transform: translate(28px, -4px) translateZ(0); } 66% { transform: translate(48px, -18px) translateZ(0); } }
+  @keyframes circle-9 { 33% { transform: translate(18px, -10px) translateZ(0); } 66% { transform: translate(65px, -8px) translateZ(0); } }
+  @keyframes circle-10 { 33% { transform: translate(55px, 18px) translateZ(0); } 66% { transform: translate(80px, 24px) translateZ(0); } }
+  @keyframes circle-11 { 33% { transform: translate(4px, 4px) translateZ(0); } 66% { transform: translate(55px, 18px) translateZ(0); } }
+  @keyframes circle-12 { 33% { transform: translate(45px, 0px) translateZ(0); } 66% { transform: translate(50px, -28px) translateZ(0); } }
+
+  /* Color Theme 2: Emerald & Mint (+ New Order) */
+  .theme-green {
+    --c-color-1: rgba(52, 211, 153, 0.85); --c-color-2: #06b6d4; --c-color-3: #10b981; --c-color-4: rgba(167, 243, 208, 0.8);
+    --c-shadow: rgba(52, 211, 153, 0.45); --c-radial-inner: #10b981; --c-radial-outer: #6ee7b7;
+  }
+  /* Color Theme 3: Periwinkle & Violet (Pause & Step) */
+  .theme-blue {
+    --c-color-1: rgba(147, 197, 253, 0.85); --c-color-2: #6366f1; --c-color-3: #a855f7; --c-color-4: rgba(196, 181, 253, 0.85);
+    --c-shadow: rgba(129, 140, 248, 0.45); --c-radial-inner: #6366f1; --c-radial-outer: #a5b4fc;
+  }
+  /* Color Theme 4: Deep Cyan Glow (Live Split Compare) */
+  .theme-cyan {
+    --c-color-1: rgba(34, 211, 238, 0.85); --c-color-2: #0284c7; --c-color-3: #14b8a6; --c-color-4: rgba(103, 232, 249, 0.85);
+    --c-shadow: rgba(34, 211, 238, 0.5); --c-radial-inner: #0284c7; --c-radial-outer: #38bdf8;
+  }
+  /* Color Theme 5: Crimson & Magma (Traffic Jam, Breakdown, Cancel) */
+  .theme-danger {
+    --c-color-1: rgba(251, 113, 133, 0.85); --c-color-2: #be123c; --c-color-3: #f97316; --c-color-4: rgba(253, 164, 175, 0.85);
+    --c-shadow: rgba(244, 63, 94, 0.48); --c-radial-inner: #e11d48; --c-radial-outer: #fb7185;
+  }
+
+  .btn-active { outline: 2px solid #fff; box-shadow: 0 0 22px rgba(255, 255, 255, 0.85); }
+  .shake { animation: btnShake 0.35s ease; }
+  @keyframes btnShake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    50% { transform: translateX(4px); }
+    75% { transform: translateX(-3px); }
+  }
+
+  .slider-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--muted);
+    background: var(--card);
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  input[type="range"] { width: 65%; accent-color: var(--gold); cursor: pointer; }
+
+  /* Uiverse Cyber Glass & Rotating Neon Edge KPI Cards */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .kpi-box {
+    position: relative;
+    border-radius: 12px;
+    padding: 11px 12px;
+    background: linear-gradient(145deg, rgba(24, 30, 50, 0.92), rgba(14, 18, 32, 0.96));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+    z-index: 1;
+    transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s, border-color 0.25s;
+  }
+  /* شعاع ضوء بيلف بنعومة جوه خلفية الكارت */
+  .kpi-box::before {
+    content: "";
+    position: absolute;
+    inset: -50%;
+    background: conic-gradient(from 0deg, transparent 70%, var(--card-accent, #38bdf8) 100%);
+    animation: kpiSpin 6s linear infinite;
+    opacity: 0.22;
+    z-index: -2;
+  }
+  /* طبقة زجاجية داخلية تحافظ على وضوح الرقم */
+  .kpi-box::after {
+    content: "";
+    position: absolute;
+    inset: 1.5px;
+    border-radius: 10.5px;
+    background: linear-gradient(160deg, rgba(21, 27, 46, 0.94), rgba(13, 17, 30, 0.97));
+    z-index: -1;
+  }
+  @keyframes kpiSpin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* لمعة وتفاعل عند الوقوف بالماوس */
+  .kpi-box:hover {
+    transform: translateY(-2px);
+    border-color: var(--card-accent, #38bdf8);
+    box-shadow: 0 6px 18px -4px var(--card-glow, rgba(56, 189, 248, 0.35));
+  }
+  .kpi-box:hover::before {
+    opacity: 0.55;
+    animation-duration: 2.5s;
+  }
+
+  /* تخصيص لون كل كارت من الـ 6 تلقائياً حسب ترتيبه */
+  .kpi-box:nth-child(1) { --card-accent: #38bdf8; --card-glow: rgba(56, 189, 248, 0.35); }  /* TIME - Cyan */
+  .kpi-box:nth-child(2) { --card-accent: #34d399; --card-glow: rgba(52, 211, 153, 0.35); }  /* DELIVERED - Emerald */
+  .kpi-box:nth-child(3) { --card-accent: #fb7185; --card-glow: rgba(251, 113, 133, 0.35); } /* LATE/CANCEL - Crimson */
+  .kpi-box:nth-child(4) { --card-accent: #a78bfa; --card-glow: rgba(167, 139, 250, 0.35); } /* DISTANCE - Violet */
+  .kpi-box:nth-child(5) { --card-accent: #fbbf24; --card-glow: rgba(251, 191, 36, 0.35); }  /* REPLANS - Gold */
+  .kpi-box:nth-child(6) { --card-accent: #f472b6; --card-glow: rgba(244, 114, 182, 0.35); } /* PLAN TIME - Pink */
+
+  .kpi-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #94a3b8;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  /* نقطة مضيئة صغيرة جنب اسم كل مؤشر */
+  .kpi-label::after {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--card-accent, #38bdf8);
+    box-shadow: 0 0 8px var(--card-accent, #38bdf8);
+  }
+  .kpi-val {
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 1. Supervisor & Agent Message Bus (Larger, Glassy & Custom Cyber Scrollbar) */
+  .feed-box {
+    height: 155px;
+    max-height: 155px;
+    overflow-y: auto;
+    padding: 10px;
+    border-radius: 12px;
+    background: linear-gradient(160deg, rgba(16, 22, 40, 0.88), rgba(10, 14, 26, 0.94));
+    border: 1px solid rgba(251, 191, 36, 0.28);
+    box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.45), 0 0 15px rgba(251, 191, 36, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  /* إخفاء السكرول الأبيض القديم واستبداله بسكرول رفيع نيون */
+  .feed-box::-webkit-scrollbar {
+    width: 5px;
+  }
+  .feed-box::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.5);
+    border-radius: 10px;
+  }
+  .feed-box::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #fbbf24, #38bdf8);
+    border-radius: 10px;
+  }
+  .feed-item {
+    font-size: 11.5px;
+    line-height: 1.45;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: rgba(30, 41, 59, 0.65);
+    border-left: 3px solid #fbbf24;
+    color: #f8fafc;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    transition: transform 0.15s ease, background 0.2s ease;
+  }
+  .feed-item:hover {
+    transform: translateX(3px);
+    background: rgba(51, 65, 85, 0.8);
+  }
+
+  /* 2. Solver Convergence Chart Box (Cyber Glass + Grid Glow) */
+  .conv-wrap {
+    position: relative;
+    height: 135px;
+    padding: 10px;
+    border-radius: 12px;
+    background:
+      radial-gradient(circle at 85% 20%, rgba(56, 189, 248, 0.12), transparent 60%),
+      linear-gradient(160deg, rgba(16, 22, 40, 0.9), rgba(10, 14, 26, 0.95));
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    box-shadow: inset 0 2px 12px rgba(0, 0, 0, 0.5), 0 0 16px rgba(56, 189, 248, 0.1);
+    overflow: hidden;
+  }
+  /* شبكة خفيفة جوه الرسم البياني */
+  .conv-wrap::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(56, 189, 248, 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(56, 189, 248, 0.06) 1px, transparent 1px);
+    background-size: 20px 20px;
+    pointer-events: none;
+  }
+  #convCanvas {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    display: block;
+    filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.45));
+  }
+  /* Uiverse Digital Rain Matrix Background */
+  #bg-matrix {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    --c: #09f;
+    background-color: #050811;
+    background-image:
+      radial-gradient(4px 100px at 0px 235px, var(--c), #0000),
+      radial-gradient(4px 100px at 300px 235px, var(--c), #0000),
+      radial-gradient(1.5px 1.5px at 150px 117.5px, var(--c) 100%, #0000 150%),
+      radial-gradient(4px 100px at 0px 252px, var(--c), #0000),
+      radial-gradient(4px 100px at 300px 252px, var(--c), #0000),
+      radial-gradient(1.5px 1.5px at 150px 126px, var(--c) 100%, #0000 150%),
+      radial-gradient(4px 100px at 0px 150px, var(--c), #0000),
+      radial-gradient(4px 100px at 300px 150px, var(--c), #0000),
+      radial-gradient(1.5px 1.5px at 150px 75px, var(--c) 100%, #0000 150%),
+      radial-gradient(4px 100px at 0px 253px, var(--c), #0000),
+      radial-gradient(4px 100px at 300px 253px, var(--c), #0000),
+      radial-gradient(1.5px 1.5px at 150px 126.5px, var(--c) 100%, #0000 150%),
+      radial-gradient(4px 100px at 0px 204px, var(--c), #0000),
+      radial-gradient(4px 100px at 300px 204px, var(--c), #0000),
+      radial-gradient(1.5px 1.5px at 150px 102px, var(--c) 100%, #0000 150%),
+      radial-gradient(4px 100px at 0px 134px, var(--c), #0000),
+      radial-gradient(4px 100px at 300px 134px, var(--c), #0000),
+      radial-gradient(1.5px 1.5px at 150px 67px, var(--c) 100%, #0000 150%),
+      radial-gradient(4px 100px at 0px 179px, var(--c), #0000),
+      radial-gradient(4px 100px at 300px 179px, var(--c), #0000),
+      radial-gradient(1.5px 1.5px at 150px 89.5px, var(--c) 100%, #0000 150%),
+      radial-gradient(4px 100px at 0px 299px, var(--c), #0000),
+      radial-gradient(4px 100px at 300px 299px, var(--c), #0000),
+      radial-gradient(1.5px 1.5px at 150px 149.5px, var(--c) 100%, #0000 150%),
+      radial-gradient(4px 100px at 0px 215px, var(--c), #0000),
+      radial-gradient(4px 100px at 300px 215px, var(--c), #0000),
+      radial-gradient(1.5px 1.5px at 150px 107.5px, var(--c) 100%, #0000 150%),
+      radial-gradient(4px 100px at 0px 281px, var(--c), #0000),
+      radial-gradient(4px 100px at 300px 281px, var(--c), #0000),
+      radial-gradient(1.5px 1.5px at 150px 140.5px, var(--c) 100%, #0000 150%),
+      radial-gradient(4px 100px at 0px 158px, var(--c), #0000),
+      radial-gradient(4px 100px at 300px 158px, var(--c), #0000),
+      radial-gradient(1.5px 1.5px at 150px 79px, var(--c) 100%, #0000 150%),
+      radial-gradient(4px 100px at 0px 210px, var(--c), #0000),
+      radial-gradient(4px 100px at 300px 210px, var(--c), #0000),
+      radial-gradient(1.5px 1.5px at 150px 105px, var(--c) 100%, #0000 150%);
+    background-size:
+      300px 235px, 300px 235px, 300px 235px,
+      300px 252px, 300px 252px, 300px 252px,
+      300px 150px, 300px 150px, 300px 150px,
+      300px 253px, 300px 253px, 300px 253px,
+      300px 204px, 300px 204px, 300px 204px,
+      300px 134px, 300px 134px, 300px 134px,
+      300px 179px, 300px 179px, 300px 179px,
+      300px 299px, 300px 299px, 300px 299px,
+      300px 215px, 300px 215px, 300px 215px,
+      300px 281px, 300px 281px, 300px 281px,
+      300px 158px, 300px 158px, 300px 158px,
+      300px 210px, 300px 210px, 300px 210px;
+    animation: hi 150s linear infinite;
+  }
+  #bg-matrix::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    backdrop-filter: blur(0.8em) brightness(5);
+    background-image: radial-gradient(circle at 50% 50%, #0000 0, #0000 2px, hsl(225 35% 5% / 0.85) 2px);
+    background-size: 8px 8px;
+  }
+  @keyframes hi {
+    0% {
+      background-position:
+        0px 220px, 3px 220px, 151.5px 337.5px, 25px 24px, 28px 24px, 176.5px 150px,
+        50px 16px, 53px 16px, 201.5px 91px, 75px 224px, 78px 224px, 226.5px 350.5px,
+        100px 19px, 103px 19px, 251.5px 121px, 125px 120px, 128px 120px, 276.5px 187px,
+        150px 31px, 153px 31px, 301.5px 120.5px, 175px 235px, 178px 235px, 326.5px 384.5px,
+        200px 121px, 203px 121px, 351.5px 228.5px, 225px 224px, 228px 224px, 376.5px 364.5px,
+        250px 26px, 253px 26px, 401.5px 105px, 275px 75px, 278px 75px, 426.5px 180px;
+    }
+    to {
+      background-position:
+        0px 6800px, 3px 6800px, 151.5px 6917.5px, 25px 13632px, 28px 13632px, 176.5px 13758px,
+        50px 5416px, 53px 5416px, 201.5px 5491px, 75px 17175px, 78px 17175px, 226.5px 17301.5px,
+        100px 5119px, 103px 5119px, 251.5px 5221px, 125px 8428px, 128px 8428px, 276.5px 8495px,
+        150px 9876px, 153px 9876px, 301.5px 9965.5px, 175px 13391px, 178px 13391px, 326.5px 13540.5px,
+        200px 14741px, 203px 14741px, 351.5px 14848.5px, 225px 18770px, 228px 18770px, 376.5px 18910.5px,
+        250px 5082px, 253px 5082px, 401.5px 5161px, 275px 6375px, 278px 6375px, 426.5px 6480px;
+    }
+  }
+
+  /* جعل اللوحات شبه شفافة عشان خلفية المطر الرقمي تبان من وراها بنعومة */
+  .main-area, .sidebar {
+    position: relative;
+    z-index: 1;
+    background: rgba(11, 16, 30, 0.72) !important;
+    backdrop-filter: blur(8px);
+    border-color: rgba(56, 189, 248, 0.18) !important;
+  }
+  /* Final Polish: Gradient Title & Neon Slider */
+  .sidebar h2, .sidebar h1 {
+    background: linear-gradient(90deg, #ffffff 20%, #38bdf8 65%, #f472b6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .slider-row {
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: rgba(16, 22, 40, 0.75);
+    border: 1px solid rgba(56, 189, 248, 0.22);
+  }
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #38bdf8, #a855f7, #f472b6);
+    outline: none;
+    cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #ffffff;
+    border: 2px solid #38bdf8;
+    box-shadow: 0 0 12px #38bdf8, 0 0 20px rgba(244, 114, 182, 0.8);
+    transition: transform 0.15s ease;
+  }
+  input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.25);
+  }
+</style>
+</head>
+<body>
+<div id="bg-matrix"></div>
+<div class="map-zone">
+  <div class="map-header">
+    <div>
+      <strong style="font-size:15px;">Live Fleet Spatial Grid</strong>
+      <span id="clickHint" style="font-size:12px; color:var(--gold); margin-left:10px; display:none;">Click anywhere on map to drop a new order!</span>
+    </div>
+    <span class="badge" id="statusBadge">READY</span>
+  </div>
+
+  <div class="canvas-grid" id="canvasGrid">
+    <div class="canvas-wrap">
+      <div class="overlay-tag" id="tagA">PRIMARY: ACO</div>
+      <canvas id="canvasA" class="sim-canvas"></canvas>
+    </div>
+    <div class="canvas-wrap" id="wrapB" style="display:none;">
+      <div class="overlay-tag" id="tagB">COMPARE: NEAREST</div>
+      <canvas id="canvasB" class="sim-canvas"></canvas>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span><i class="dot" style="background:var(--gold); border-radius:2px;"></i> Depot Hub</span>
+    <span><i class="dot" style="background:#4fd1c5;"></i> Delivery Van (Heading + Headlights)</span>
+    <span><i class="dot" style="background:#f8fafc; border:2px solid #38bdf8;"></i> Pending Package</span>
+    <span><i class="dot" style="background:var(--green);"></i> Delivered On-Time</span>
+    <span><i class="dot" style="background:var(--red);"></i> Late / Traffic / Breakdown</span>
+  </div>
+</div>
+
+<div class="sidebar">
+  <div class="title">
+    <h1>Multi-Agent Delivery</h1>
+    <p>Hierarchical Supervisor + Metaheuristic Routing</p>
+  </div>
+
+  <div class="controls-grid">
+    <select id="scnSelect" onchange="resetSim()"></select>
+    <select id="solverSelect" onchange="resetSim()">
+      <option value="aco">ACO (Ant Colony)</option>
+      <option value="nearest">Nearest Customer</option>
+      <option value="ga">Genetic Algorithm</option>
+      <option value="sa">Simulated Annealing</option>
+    </select>
+    <select id="policySelect" onchange="resetSim()">
+      <option value="full">Policy: Full Supervisor</option>
+      <option value="no_risk_escalation">Policy: No Risk Escalation</option>
+      <option value="fixed_timer">Policy: Fixed Timer</option>
+    </select>
+    <select id="solverBSelect" onchange="resetSim()" title="Secondary Solver for Live Compare">
+      <option value="nearest">Compare vs: Nearest</option>
+      <option value="ga">Compare vs: GA</option>
+      <option value="sa">Compare vs: SA</option>
+      <option value="aco">Compare vs: ACO</option>
+    </select>
+  </div>
+<div class="btn-row">
+    <button class="uiverse" onclick="startSim()">Start / Restart</button>
+    <button class="uiverse theme-blue" onclick="togglePlay()" id="playBtn">Pause</button>
+    <button class="uiverse theme-blue" onclick="stepOnce()">Step +1m</button>
+    <button class="uiverse theme-green" onclick="toggleAddOrder()" id="addOrderBtn">+ New Order</button>
+    <button class="uiverse theme-danger" onclick="triggerEvent('/api/jam', this)">Traffic Jam</button>
+    <button class="uiverse theme-danger" onclick="triggerEvent('/api/breakdown', this)">Breakdown</button>
+    <button class="uiverse theme-danger" onclick="triggerEvent('/api/cancel', this)">Cancel Order</button>
+    <button class="uiverse theme-cyan" onclick="toggleCompare()" id="compareBtn" style="grid-column: span 2;">Live Split Compare</button>
+  </div>
+
+  <div class="slider-row">
+    <span>Sim Speed: <strong id="speedVal" style="color:var(--gold);">8x</strong></span>
+    <input type="range" id="speedSlider" min="1" max="25" value="8" oninput="document.getElementById('speedVal').innerText=this.value+'x'">
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-box"><div class="kpi-label">Time</div><div class="kpi-val" id="kpiTime">0m</div></div>
+    <div class="kpi-box"><div class="kpi-label">Delivered</div><div class="kpi-val" id="kpiOrders" style="color:var(--green);">0/0</div></div>
+    <div class="kpi-box"><div class="kpi-label">Late / Cancel</div><div class="kpi-val" id="kpiLate" style="color:var(--red);">0 / 0</div></div>
+    <div class="kpi-box"><div class="kpi-label">Distance</div><div class="kpi-val" id="kpiDist">0</div></div>
+    <div class="kpi-box"><div class="kpi-label">Replans</div><div class="kpi-val" id="kpiReplans" style="color:var(--gold);">0</div></div>
+    <div class="kpi-box"><div class="kpi-label">Plan Time</div><div class="kpi-val" id="kpiPlan">0.0s</div></div>
+  </div>
+
+  <div style="font-size:12px; font-weight:700; color:var(--gold);">Supervisor & Agent Message Bus</div>
+  <div class="feed-box" id="feedBox"></div>
+
+  <div style="font-size:12px; font-weight:700; color:var(--muted);">Solver Convergence (Cost vs Baseline)</div>
+  <div class="conv-wrap"><canvas id="convCanvas"></canvas></div>
+</div>
+
+<script>
+  // 1. حط الكود هنا في الأول خالص
+  document.querySelectorAll(".uiverse").forEach(btn => {
+    const label = btn.textContent.trim();
+    let circlesHtml = "";
+    for (let i = 12; i >= 1; i--) {
+      circlesHtml += `<div class="circle circle-${i}"></div>`;
+    }
+    btn.innerHTML = `<div class="wrapper"><span>${label}</span>${circlesHtml}</div>`;
+  });
+  // Wrap all 4 dropdowns with the Uiverse Pink/Violet glow container + animated arrow
+  document.querySelectorAll(".controls-grid select").forEach(sel => {
+    const wrap = document.createElement("div");
+    wrap.className = "uiverse-select-wrap";
+    wrap.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path stroke-width="5" stroke-linejoin="round" stroke-linecap="round" fill="none" d="M60.7,53.6,50,64.3m0,0L39.3,53.6M50,64.3V35.7m0,46.4A32.1,32.1,0,1,1,82.1,50,32.1,32.1,0,0,1,50,82.1Z"></path></svg>`;
+    sel.parentNode.insertBefore(wrap, sel);
+    wrap.appendChild(sel);
+  });
+
+  // باقي كود الجافاسكريبت الموجود أصلاً سيبه تحته زي ما هو...
+const COLORS = ["#4FD1C5", "#F6A05A", "#B79CFF", "#6CB6FF", "#F472B6", "#A3E635", "#FB7185", "#38BDF8"];
+let running = false, addMode = false, compareMode = false;
+let stateA = null, stateB = null;
+let smoothA = {}, smoothB = {}; // { id: {x, y, angle, moving, trail: []} }
+let pulses = [];
+let lastFeedSig = "";
+let dashOffset = 0;
+
+// Ripple Click Effect on All Buttons
+document.querySelectorAll("button").forEach(btn => {
+  btn.addEventListener("click", function(e) {
+    const circle = document.createElement("span");
+    const diameter = Math.max(btn.clientWidth, btn.clientHeight);
+    const radius = diameter / 2;
+    const rect = btn.getBoundingClientRect();
+    circle.style.width = circle.style.height = `${diameter}px`;
+    circle.style.left = `${e.clientX - rect.left - radius}px`;
+    circle.style.top = `${e.clientY - rect.top - radius}px`;
+    circle.classList.add("ripple");
+    const old = btn.querySelector(".ripple");
+    if (old) old.remove();
+    btn.appendChild(circle);
+  });
+});
+
+async function api(url, body = null) {
+  const res = await fetch(url, body ? {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  } : {});
+  return await res.json();
+}
+
+function addPulse(x, y, color) {
+  pulses.push({ x, y, r: 2, alpha: 1.0, color });
+}
+
+function updateSmooth(simData, store) {
+  if (!simData || !simData.couriers) return;
+  simData.couriers.forEach(c => {
+    if (!store[c.id]) {
+      store[c.id] = { x: c.x, y: c.y, angle: 0, moving: false, trail: [] };
+    }
+    const s = store[c.id];
+    const dx = c.x - s.x;
+    const dy = c.y - s.y;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist > 30) {
+      s.x = c.x; s.y = c.y; s.trail = [];
+    }
+
+    // Update heading angle smoothly toward target or next waypoint
+    let targetAngle = s.angle;
+    if (dist > 0.08) {
+      targetAngle = Math.atan2(dy, dx);
+      s.moving = true;
+    } else if (c.route && c.route.length > 1) {
+      const rdx = c.route[1][0] - c.x;
+      const rdy = c.route[1][1] - c.y;
+      if (Math.hypot(rdx, rdy) > 0.1) targetAngle = Math.atan2(rdy, rdx);
+      s.moving = false;
+    } else {
+      s.moving = false;
+    }
+
+    // Shortest angular interpolation
+    let diff = targetAngle - s.angle;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    s.angle += diff * 0.25;
+
+    s.x += dx * 0.22;
+    s.y += dy * 0.22;
+
+    if (!c.broken && dist > 0.06) {
+      s.trail.push({ x: s.x, y: s.y });
+      if (s.trail.length > 22) s.trail.shift();
+    }
+  });
+}
+
+// Draw a detailed top-down Delivery Van with headlights & ID badge
+function drawDeliveryVehicle(ctx, cx, cy, angle, color, id, broken, moving) {
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  // Pulsing warning aura if broken
+  if (broken) {
+    const rPulse = 15 + 4 * Math.sin(Date.now() / 140);
+    ctx.beginPath();
+    ctx.arc(0, 0, rPulse, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(248, 113, 113, 0.22)";
+    ctx.fill();
+  }
+
+  ctx.rotate(angle);
+
+  // Headlight beams when active & moving
+  if (!broken && moving) {
+    const grad = ctx.createLinearGradient(12, 0, 38, 0);
+    grad.addColorStop(0, "rgba(255, 250, 210, 0.45)");
+    grad.addColorStop(1, "rgba(255, 250, 210, 0)");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(12, -5);
+    ctx.lineTo(38, -14);
+    ctx.lineTo(38, 14);
+    ctx.lineTo(12, 5);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Wheels
+  ctx.fillStyle = "#06090f";
+  ctx.fillRect(-10, -10, 6, 3);
+  ctx.fillRect(5, -10, 6, 3);
+  ctx.fillRect(-10, 7, 6, 3);
+  ctx.fillRect(5, 7, 6, 3);
+
+  // Van Body with Glow
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 12;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.roundRect(-13, -8, 26, 16, 4);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Outline
+  ctx.lineWidth = 1.6;
+  ctx.strokeStyle = "#080d14";
+  ctx.stroke();
+
+  // Front Windshield
+  ctx.fillStyle = "#0f172a";
+  ctx.beginPath();
+  ctx.roundRect(5, -6, 5, 12, 2);
+  ctx.fill();
+
+  // Headlight dots
+  ctx.fillStyle = broken ? "#7f1d1d" : "#fef08a";
+  ctx.fillRect(12, -6, 2, 3);
+  ctx.fillRect(12, 3, 2, 3);
+
+  // Un-rotate text so the agent number stays upright and readable
+  ctx.rotate(-angle);
+  ctx.fillStyle = "#080d14";
+  ctx.font = "bold 10px Segoe UI";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(broken ? "!" : id, -2, 0);
+
+  ctx.restore();
+}
+
+// Draw Depot Warehouse Hub
+function drawDepotHub(ctx, dx, dy) {
+  ctx.save();
+  ctx.translate(dx, dy);
+  ctx.shadowColor = "#f5b83d";
+  ctx.shadowBlur = 16;
+  ctx.fillStyle = "#f5b83d";
+  ctx.beginPath();
+  ctx.roundRect(-14, -14, 28, 28, 6);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  ctx.strokeStyle = "#1a1204";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(-10, -10, 20, 20);
+
+  // Roof lines
+  ctx.beginPath();
+  ctx.moveTo(-10, -10); ctx.lineTo(0, -3); ctx.lineTo(10, -10);
+  ctx.stroke();
+
+  ctx.fillStyle = "#0b0f17";
+  ctx.font = "bold 11px Segoe UI";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("HUB", 0, 4);
+  ctx.restore();
+}
+
+function drawGridCanvas(canvas, simData, smoothStore) {
+  if (!simData || !simData.depot) return;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  if (canvas.width !== rect.width * dpr || canvas.height !== rect.height * dpr) {
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+  }
+  const ctx = canvas.getContext("2d");
+  ctx.save();
+  ctx.scale(dpr, dpr);
+  const W = rect.width, H = rect.height;
+  const pad = 28;
+  const size = Math.min(W, H) - pad * 2;
+  const ox = (W - size) / 2, oy = (H - size) / 2;
+  const toPx = (x, y) => [ox + (x / 100) * size, oy + (y / 100) * size];
+
+  ctx.clearRect(0, 0, W, H);
+
+  // City Road Grid
+  ctx.strokeStyle = "#162338";
+  ctx.lineWidth = 1;
+  for (let g = 0; g <= 100; g += 10) {
+    const [gx, gy] = toPx(g, g);
+    ctx.beginPath(); ctx.moveTo(gx, oy); ctx.lineTo(gx, oy + size); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ox, gy); ctx.lineTo(ox + size, gy); ctx.stroke();
+  }
+
+  // Traffic Jams
+  const pulseAlpha = 0.22 + 0.12 * Math.sin(Date.now() / 220);
+  (simData.traffic || []).forEach(t => {
+    const [x1, y1] = toPx(t.x1, t.y1);
+    const [x2, y2] = toPx(t.x2, t.y2);
+    ctx.fillStyle = `rgba(248, 113, 113, ${pulseAlpha})`;
+    ctx.fillRect(x1, y1, x2 - x1, y2 - y1);
+    ctx.strokeStyle = "#f87171";
+    ctx.setLineDash([6, 4]);
+    ctx.lineDashOffset = -dashOffset;
+    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#fca5a5";
+    ctx.font = "bold 11px Segoe UI";
+    ctx.fillText(`TRAFFIC x${t.factor.toFixed(1)}`, x1 + 6, y1 + 15);
+  });
+
+  // Animated Planned Routes
+  (simData.couriers || []).forEach(c => {
+    if (c.broken || !c.route || c.route.length < 2) return;
+    const col = COLORS[c.idx % COLORS.length];
+    const sPos = smoothStore[c.id] || c;
+    ctx.beginPath();
+    const [sx, sy] = toPx(sPos.x, sPos.y);
+    ctx.moveTo(sx, sy);
+    for (let i = 1; i < c.route.length; i++) {
+      const [rx, ry] = toPx(c.route[i][0], c.route[i][1]);
+      ctx.lineTo(rx, ry);
+    }
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 2.2;
+    ctx.globalAlpha = 0.72;
+    ctx.setLineDash([7, 5]);
+    ctx.lineDashOffset = -dashOffset;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+  });
+
+  // Tire / Motion Trails
+  (simData.couriers || []).forEach(c => {
+    const s = smoothStore[c.id];
+    if (!s || s.trail.length < 2) return;
+    const col = COLORS[c.idx % COLORS.length];
+    for (let i = 1; i < s.trail.length; i++) {
+      const [x1, y1] = toPx(s.trail[i - 1].x, s.trail[i - 1].y);
+      const [x2, y2] = toPx(s.trail[i].x, s.trail[i].y);
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.strokeStyle = col;
+      ctx.globalAlpha = (i / s.trail.length) * 0.4;
+      ctx.lineWidth = 4;
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  });
+
+  // Orders (Styled as Delivery Packages)
+  (simData.orders || []).forEach(o => {
+    const [oxp, oyp] = toPx(o.x, o.y);
+    if (o.state === "cancelled") {
+      ctx.strokeStyle = "#64748b"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(oxp - 4, oyp - 4); ctx.lineTo(oxp + 4, oyp + 4);
+      ctx.moveTo(oxp + 4, oyp - 4); ctx.lineTo(oxp - 4, oyp + 4); ctx.stroke();
+    } else if (o.state === "delivered") {
+      ctx.beginPath(); ctx.arc(oxp, oyp, 4.5, 0, Math.PI * 2);
+      ctx.fillStyle = o.late ? "#f87171" : "#4ade80";
+      ctx.fill();
+    } else {
+      const col = o.owner >= 0 ? COLORS[o.owner % COLORS.length] : "#94a3b8";
+      ctx.fillStyle = "#f8fafc";
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.roundRect(oxp - 6, oyp - 6, 12, 12, 3);
+      ctx.fill();
+      ctx.stroke();
+      // Package tape stripe
+      ctx.beginPath();
+      ctx.moveTo(oxp - 6, oyp); ctx.lineTo(oxp + 6, oyp);
+      ctx.stroke();
+
+      ctx.fillStyle = "#cbd5e1"; ctx.font = "10px Consolas";
+      ctx.fillText(`#${o.id}`, oxp + 9, oyp - 6);
+    }
+  });
+
+  // Depot Hub
+  const [dx, dy] = toPx(simData.depot[0], simData.depot[1]);
+  drawDepotHub(ctx, dx, dy);
+
+  // Delivery Vehicles
+  (simData.couriers || []).forEach(c => {
+    const s = smoothStore[c.id] || { x: c.x, y: c.y, angle: 0, moving: false };
+    const [cx, cy] = toPx(s.x, s.y);
+    const col = c.broken ? "#f87171" : COLORS[c.idx % COLORS.length];
+    drawDeliveryVehicle(ctx, cx, cy, s.angle, col, c.id, c.broken, s.moving);
+  });
+
+  // Ripple Pulses
+  for (let i = pulses.length - 1; i >= 0; i--) {
+    const p = pulses[i];
+    const [px, py] = toPx(p.x, p.y);
+    ctx.beginPath(); ctx.arc(px, py, p.r, 0, Math.PI * 2);
+    ctx.strokeStyle = p.color; ctx.globalAlpha = p.alpha; ctx.lineWidth = 2.5;
+    ctx.stroke(); ctx.globalAlpha = 1;
+    p.r += 1.4; p.alpha -= 0.025;
+    if (p.alpha <= 0) pulses.splice(i, 1);
+  }
+  ctx.restore();
+}
+
+function drawConvergence(conv) {
+  const canvas = document.getElementById("convCanvas");
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr; canvas.height = rect.height * dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  const W = rect.width, H = rect.height;
+  ctx.clearRect(0, 0, W, H);
+  if (!conv || !conv.history || conv.history.length < 2) return;
+
+  const h = conv.history, base = conv.baseline;
+  const lo = Math.min(...h, base) * 0.95, hi = Math.max(...h, base) * 1.05;
+  const X = i => 12 + (i * (W - 24)) / (h.length - 1);
+  const Y = v => H - 12 - ((v - lo) / (hi - lo + 1e-9)) * (H - 24);
+
+  ctx.strokeStyle = "#38bdf8"; ctx.setLineDash([4, 3]);
+  ctx.beginPath(); ctx.moveTo(12, Y(base)); ctx.lineTo(W - 12, Y(base)); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = "#38bdf8"; ctx.font = "10px Segoe UI";
+  ctx.fillText("Baseline", W - 52, Y(base) - 5);
+
+  ctx.strokeStyle = "#f5b83d"; ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  h.forEach((v, i) => i === 0 ? ctx.moveTo(X(i), Y(v)) : ctx.lineTo(X(i), Y(v)));
+  ctx.stroke();
+}
+
+function updateUI(data) {
+  stateA = data.primary;
+  stateB = data.secondary;
+  if (!stateA) return;
+
+  const sm = stateA.summary;
+  document.getElementById("kpiTime").innerText = `${stateA.now}m`;
+  document.getElementById("kpiOrders").innerText = `${sm.delivered}/${sm.total}`;
+  document.getElementById("kpiLate").innerText = `${sm.late} / ${sm.cancelled}`;
+  document.getElementById("kpiDist").innerText = Math.round(sm.distance);
+  document.getElementById("kpiReplans").innerText = sm.replans;
+  document.getElementById("kpiPlan").innerText = `${sm.plan_seconds.toFixed(1)}s`;
+
+  const badge = document.getElementById("statusBadge");
+  badge.innerText = stateA.done ? "COMPLETED" : (running ? "SIMULATING LIVE" : "PAUSED");
+  badge.style.color = stateA.done ? "#4ade80" : "#38bdf8";
+
+  document.getElementById("tagA").innerText = `PRIMARY: ${stateA.solver}`;
+  if (stateB) document.getElementById("tagB").innerText = `COMPARE: ${stateB.solver}`;
+
+  const feedSig = JSON.stringify(stateA.feed);
+  if (feedSig !== lastFeedSig) {
+    lastFeedSig = feedSig;
+    const box = document.getElementById("feedBox");
+    box.innerHTML = "";
+    stateA.feed.forEach(item => {
+      const div = document.createElement("div");
+      const cls = item.is_sup ? "sup" : (item.type === "BREAKDOWN" || item.type === "CANCEL_ORDER" ? "alert" : "");
+      div.className = `feed-item ${cls}`;
+      div.innerText = `[${item.time}m] ${item.sender} → ${item.text}`;
+      box.appendChild(div);
+    });
+    box.scrollTop = box.scrollHeight;
+  }
+  drawConvergence(stateA.convergence);
+}
+
+function renderLoop() {
+  dashOffset = (dashOffset + 0.5) % 100;
+  updateSmooth(stateA, smoothA);
+  drawGridCanvas(document.getElementById("canvasA"), stateA, smoothA);
+  if (compareMode && stateB) {
+    updateSmooth(stateB, smoothB);
+    drawGridCanvas(document.getElementById("canvasB"), stateB, smoothB);
+  }
+  requestAnimationFrame(renderLoop);
+}
+
+let lastStepTime = 0;
+async function simLoop(ts) {
+  if (running && stateA && !stateA.done) {
+    const speed = parseInt(document.getElementById("speedSlider").value, 10);
+    const interval = 1000 / speed;
+    if (ts - lastStepTime >= interval) {
+      lastStepTime = ts;
+      const res = await api("/api/step", {});
+      updateUI(res);
+      if (res.primary.done) { running = false; document.getElementById("playBtn").innerText = "Resume"; }
+    }
+  }
+  requestAnimationFrame(simLoop);
+}
+
+async function resetSim() {
+  smoothA = {}; smoothB = {}; pulses = [];
+  const res = await api("/api/reset", {
+    scn_idx: document.getElementById("scnSelect").value,
+    solver: document.getElementById("solverSelect").value,
+    solver_b: document.getElementById("solverBSelect").value,
+    policy: document.getElementById("policySelect").value,
+    compare_mode: compareMode
+  });
+  updateUI(res);
+}
+
+async function startSim() {
+  await resetSim();
+  running = true;
+  document.getElementById("playBtn").innerText = "Pause";
+}
+
+function togglePlay() {
+  running = !running;
+  document.getElementById("playBtn").innerText = running ? "Pause" : "Resume";
+}
+
+async function stepOnce() {
+  running = false;
+  document.getElementById("playBtn").innerText = "Resume";
+  updateUI(await api("/api/step", {}));
+}
+
+function toggleAddOrder() {
+  addMode = !addMode;
+  document.getElementById("addOrderBtn").classList.toggle("btn-active", addMode);
+  document.getElementById("clickHint").style.display = addMode ? "inline" : "none";
+}
+
+async function triggerEvent(endpoint, btnEl) {
+  if (btnEl) {
+    btnEl.classList.remove("shake");
+    void btnEl.offsetWidth;
+    btnEl.classList.add("shake");
+  }
+  const res = await api(endpoint, {});
+  updateUI(res);
+  if (endpoint === "/api/breakdown" && stateA) {
+    const broken = stateA.couriers.find(c => c.broken);
+    if (broken) addPulse(broken.x, broken.y, "#f87171");
+  }
+  if (!running && stateA && !stateA.done) togglePlay();
+}
+
+async function toggleCompare() {
+  compareMode = !compareMode;
+  document.getElementById("compareBtn").classList.toggle("btn-active", compareMode);
+  document.getElementById("canvasGrid").classList.toggle("compare", compareMode);
+  document.getElementById("wrapB").style.display = compareMode ? "flex" : "none";
+  await startSim();
+}
+
+document.getElementById("canvasA").addEventListener("click", async (e) => {
+  if (!addMode) return;
+  const rect = e.target.getBoundingClientRect();
+  const pad = 28;
+  const size = Math.min(rect.width, rect.height) - pad * 2;
+  const ox = (rect.width - size) / 2, oy = (rect.height - size) / 2;
+  const gx = Math.max(2, Math.min(98, ((e.clientX - rect.left - ox) / size) * 100));
+  const gy = Math.max(2, Math.min(98, ((e.clientY - rect.top - oy) / size) * 100));
+  toggleAddOrder();
+  addPulse(gx, gy, "#4ade80");
+  updateUI(await api("/api/order", { x: gx, y: gy }));
+  if (!running) togglePlay();
+});
+
+(async function init() {
+  const data = await api("/api/state");
+  const sel = document.getElementById("scnSelect");
+  data.scenarios.forEach((name, idx) => {
+    const opt = document.createElement("option");
+    opt.value = idx; opt.innerText = name;
+    sel.appendChild(opt);
+  });
+  updateUI(data);
+  requestAnimationFrame(renderLoop);
+  requestAnimationFrame(simLoop);
+})();
+</script>
+</body>
+</html>
